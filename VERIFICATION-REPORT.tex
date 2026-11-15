@@ -1,0 +1,443 @@
+\documentclass[11pt]{article}
+\usepackage[margin=2.1cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,longtable,array}
+\usepackage[hidelinks]{hyperref}
+\usepackage{microtype}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcommand{\Ln}[1]{\texttt{#1}}
+\newcommand{\No}{\texttt{(N)}}
+\newcommand{\Sc}{\texttt{(S)}}
+\newcommand{\Me}{\texttt{(M)}}
+\newcommand{\Wk}{\texttt{(W)}}
+\newcommand{\As}{\texttt{(A)}}
+\newcommand{\Us}{\texttt{(U)}}
+\title{\textbf{Lean verification report}\\[2pt]
+\large An explicit deformation excluding the tetrahedral-prism soap-film cone in $\mathbb{R}^4$\\
+\large (Mathathon project \texttt{attempt\_\allowbreak{}8\_\allowbreak{}T5}, 15 November 2026)}
+\date{}
+\begin{document}
+\maketitle
+
+\noindent\textbf{Artifact.} \Ln{results/t5-formalization/}: 11 Lean modules, 2358 lines, in the
+repository of this project. Toolchain: \Ln{leanprover/lean4:v4.33.1} (commit
+\Ln{819816b2}), with the prebuilt Mathlib installed in the image. Report written by the agent
+that produced the artifact; every statement below is either a machine-checked fact, with the
+command that checks it, or is explicitly marked unverified or author-computed.
+
+\section{Verdict}
+\label{sec:verdict}
+
+The report's Theorem~1.2 (``the tetrahedral-prism cone $T_5$ is not Almgren-minimal'') is
+\textbf{not} Lean-verified.
+
+The development verifies (i) the algebraic core of the tetrahedral geometry (Gram data of the
+four vertices); (ii) two of the three moment estimates of Lemma~3.3, namely
+$J_{5/2}>33/10$ and $J_{-3/2}>31$, both \emph{for the reduced one-dimensional integrands of
+Lemma~3.2}; (iii) the arithmetic identity of Proposition~5.1, link area$/4\pi=4\tau-5$;
+(iv) all rational one-variable certificates used by the numerical scheme (node values, chords,
+tangent data, constants).
+
+It does not verify: the area identity (Lemma~2.2), the cut-off cost and the Lipschitz or
+admissibility statements (Lemmas~4.1, 4.2), the identification of the cone (Lemma~2.1), the
+radial and angular reductions (Lemmas~3.1, 3.2), the remaining moment estimate
+$J_{1/2}<191/20$, or the numerical value of the density. In Lean the theorem exists only in
+conditional form, with three named hypotheses; \emph{there is no unconditional Lean theorem
+asserting that this cone is not area-minimizing.}
+
+\section{Criterion of verification and mechanical checks}
+\label{sec:criterion}
+
+A declaration is \emph{verified} here iff Lean elaborates it with no \Ln{sorry}, \Ln{admit},
+\Ln{axiom} or \Ln{native\_\allowbreak{}decide}, and \Ln{\#print axioms} reports only \Ln{propext},
+\Ln{Classical.choice}, \Ln{Quot.sound} --- the standard axioms of Mathlib, none of which is an
+assumption about the problem.
+
+\begin{verbatim}
+$ cd results/t5-formalization && ./build.sh
+  == checking MathathonT5/Basic.lean ... (11 modules) ...
+  == all modules checked                       [exit status 0]
+
+$ grep -rn "\bsorry\b\|\badmit\b\|^axiom\|native_decide" MathathonT5/*.lean
+  (no matches)
+
+$ lean .axcheck.lean          # imports Main and Density
+'MathathonT5.J52_gt'                  depends on axioms: [propext, Classical.choice, Quot.sound]
+'MathathonT5.Jm32_gt'                 depends on axioms: [propext, Classical.choice, Quot.sound]
+'MathathonT5.saving_of_moments'       depends on axioms: [propext, Classical.choice, Quot.sound]
+'MathathonT5.saving_of_moments_sharp' depends on axioms: [propext, Classical.choice, Quot.sound]
+'MathathonT5.not_minimizing'          depends on axioms: [propext, Classical.choice, Quot.sound]
+'MathathonT5.density_eq'              depends on axioms: [propext, Classical.choice, Quot.sound]
+     (the same for D6.B_neg, D6.saving, D5.Lam_piece_one, D5.Lam_piece_four,
+      D4.Lam_14_lt, D4.sqrtc_lt, D4.Lam_antitone, D1.convex_chord,
+      D1.convex_tangent, D1.integral_cos_sq, dot3_p_off)
+\end{verbatim}
+
+That \Ln{not\_\allowbreak{}minimizing} has only standard axioms does not make it a proof of the theorem: it is
+a conditional implication (Section~\ref{sec:conditional}). Three linter warnings remain (unused
+\Ln{ring} in \Ln{Basic.lean}, an unused variable name in \Ln{TangentData.lean}, an unused
+\Ln{simp} argument in \Ln{Jm32.lean}); they are stylistic.
+
+\section{Status vocabulary}
+
+\begin{description}\itemsep2pt
+\item[\No] no difference in mathematical content from the paper's claim.
+\item[\Sc] scope difference: proved for a definition that already contains a reduction the
+report proves separately (the reduced integrands (3.2) in place of the sphere integrals).
+\item[\Me] method difference only: same statement, different argument.
+\item[\Wk] weaker conclusion than the report's lemma.
+\item[\As] an assumption added: the Lean theorem is conditional.
+\item[\Us] proved but not used by any delivered theorem.
+\end{description}
+
+\section{Status of each claim of the report}
+\label{sec:status}
+
+\begin{longtable}{L{5.3cm}L{10.4cm}}
+\toprule
+Report item & Status in Lean \\
+\midrule\endhead
+Def.~1.1 (Almgren comparison, admissible endpoint, counted-once $\mathcal{H}^3$) &
+\textbf{not formalized}. No Hausdorff measure occurs anywhere in the tree.\\
+\S1 ($\epsilon_i,q_i,b,c,f,V_i,W,C$ of (1.1)--(1.2)) &
+\Ln{V\_\allowbreak{}i}, \Ln{W}, \Ln{C} and the cone exist as definitions (\Ln{sector}, \Ln{seam},
+\Ln{cone}); the four-vertex Gram data are proved (Appendix~\ref{app:decls}).\\
+Lemma~2.1 (identification with the tetrahedral prism; $m|u|\le f(u)\le c|u|$;
+$\mathrm{Lip}\,f\le c$) & \textbf{not formalized} as a statement. Proved instead:
+$|p_i|^2=3/5$, $p_i\cdot p_j=-1/5$, $\sum p_i=0$, $f\ge0$. The polar/two-skeleton
+identification and the three estimates are missing.\\
+Lemma~2.2 (area identity, area counted once) & \textbf{not formalized}.\\
+Lemma~3.1 ($I(F_\infty)\le B$) & \textbf{not formalized}; the moments are defined by (3.2).\\
+Lemma~3.2 (angular reduction) & \textbf{not formalized}: used as a definition of
+$J_{1/2},J_{5/2},J_{-3/2}$.\\
+Lemma~3.3, $J_{1/2}<191/20$ & \textbf{not formalized}. The hard half --- four rational
+affine majorants of $\Lambda$ --- is proved (\Ln{D5.Lam\_\allowbreak{}piece\_\allowbreak{}one..four}, unused so far);
+the piecewise assembly is missing (Section~\ref{sec:missing}).\\
+Lemma~3.3, $J_{5/2}>33/10$ & \textbf{proved} (\Ln{J52\_\allowbreak{}gt}), \Sc{} and \Me.\\
+Lemma~3.3, $J_{-3/2}>31$ & \textbf{proved} (\Ln{Jm32\_\allowbreak{}gt}), \Sc{} and \Me.\\
+Lemma~3.3, intermediate estimate (3.6) $J_2>87/20$ & \textbf{not formalized}; not needed by
+the route used here.\\
+Lemma~3.3, arithmetic step $B<-1989361/60000000<-3/100$ & \textbf{proved as an implication}
+from the three moment bounds (\Ln{D6.B\_\allowbreak{}lt}, \Ln{D6.B\_\allowbreak{}neg}, \Ln{D6.B\_\allowbreak{}neg\_\allowbreak{}exact}).\\
+Lemma~4.1 (cut-off cost $4\pi/R$) & \textbf{not formalized} (the functions
+\Ln{gR}, \Ln{FR} are defined; no estimate about them).\\
+Lemma~4.2 ($\mathrm{Lip}\,\varphi<4$, support, ball preservation, $\varphi(C)=X_{F_R}$) &
+definitions only (\Ln{phi}, \Ln{Hmap}, \Ln{zeta}, \Ln{deltaR}, \Ln{Xset}); nothing proved.\\
+Theorem~1.2 & \textbf{not formalized}; conditional form only (Section~\ref{sec:conditional}).\\
+Prop.~5.1 (link area $=48\alpha-20\pi$, density $=4\tau-5$) & \textbf{proved for the final
+arithmetic identity} (\Ln{density\_\allowbreak{}eq}, \Ln{density\_\allowbreak{}eq'}); the spherical-excess computation
+and the numerical value $2.2980814$ are \textbf{not formalized}.\\
+Remarks~4.3, 5.2, \S6, Appendix~A (\Ln{t5\_\allowbreak{}certificate.py}) & \textbf{not formalized}; the
+certificate script is not part of the supplied attachment and was not reproduced.\\
+\bottomrule
+\end{longtable}
+
+\section{The conditional form of the main theorem}
+\label{sec:conditional}
+
+\begin{verbatim}
+def Bval : R := (bb/2)*J12 - (bb^3/2)*J52 - ((bb - 1/2)/3)*Jm32
+
+theorem saving_of_moments (hJ1 : J12 < 191/20) :
+    2 * (Bval + 4 * Real.pi / 1000) < -1/40
+
+theorem saving_of_moments_sharp (hJ1 : J12 < 191/20) :
+    2 * (Bval + 4 * Real.pi / 1000) < -7/250
+
+theorem area_decreases (area : Set V4 -> R) (hJ1 : J12 < 191/20)
+    (harea : area (Xset 1000) <= area cone + 2 * (Bval + 4*Real.pi/1000)) :
+    1/40 < area cone - area (Xset 1000)
+
+theorem not_minimizing (area : Set V4 -> R) (hJ1 : J12 < 191/20)
+    (himg : phi 1000 '' cone = Xset 1000)
+    (harea : area (Xset 1000) <= area cone + 2 * (Bval + 4*Real.pi/1000)) :
+    area (phi 1000 '' cone) < area cone - 1/40
+\end{verbatim}
+
+The three hypotheses are precisely the unproved pieces: \Ln{hJ1} is the first estimate of
+Lemma~3.3; \Ln{himg} is the image identity of Lemma~4.2; \Ln{harea} is Lemma~2.2 combined with
+Lemma~3.1 and Lemma~4.1 at $R=1000$. Since \Ln{area} is an arbitrary function
+$2^{\mathbb{R}^4}\to\mathbb{R}$, no property of Hausdorff measure is used, and the conclusion is
+only as strong as \Ln{harea}: in particular nothing in Lean shows that the competitor has finite
+area, or that its area equals the real number \Ln{area (Xset 1000)}.
+
+\section{The one missing arithmetic estimate}
+\label{sec:missing}
+
+Missing: $J_{1/2}<191/20$ for
+\[
+J_{1/2}=24\int_0^{\pi/3}\tfrac23\sqrt c\,\Lambda(\cos^2 v)\,dv,\qquad
+\Lambda(x)=1-\Bigl(\tfrac{x}{2+x}\Bigr)^{3/4},\quad c=\sqrt{3/5}.
+\]
+
+Present and proved: the four rational affine majorants \Ln{D5.Lam\_\allowbreak{}piece\_\allowbreak{}one..four}
+(Appendix~\ref{app:unused}); monotonicity of $\cos^2$ on $[0,\pi/2]$ and the exact values
+$\cos^2(\pi/12)=(2+\sqrt3)/4$, $\cos^2(\pi/6)=3/4$, $\cos^2(\pi/4)=1/2$, $\cos^2(\pi/3)=1/4$;
+$\int(\alpha+\beta\cos^2)$ in closed form; $\sin(\pi/6),\sin(\pi/3),\sin(\pi/2),\sin(2\pi/3)$;
+the splitting technique over $0<\pi/12<\pi/6<\pi/4<\pi/3$ (already used twice, in \Ln{J52\_\allowbreak{}gt}
+and \Ln{Jm32\_\allowbreak{}gt}); and $\sqrt c<880112/10^6$.
+
+Missing: the five-step assembly --- (1) continuity of $v\mapsto\Lambda(\cos^2 v)$ and hence
+interval integrability on each piece (a one-line proof was found:
+\Ln{Continuous.div} with positive denominator, then \Ln{Continuous.rpow\_\allowbreak{}const} at exponent
+$3/4\ge0$); (2) \Ln{integral\_\allowbreak{}mono\_\allowbreak{}on} against each majorant on the four $v$-pieces, whose
+$x=\cos^2 v$ ranges are $[93/100,1]$, $[3/4,47/50]$, $[1/2,3/4]$, $[1/4,1/2]$;
+(3) evaluating the four integrals; (4) summing with
+\Ln{integral\_\allowbreak{}add\_\allowbreak{}adjacent\_\allowbreak{}intervals}; (5) the final comparison
+$16\cdot(880112/10^6)\cdot(6764/10000)<191/20$.
+
+Why it is missing: steps (1)--(5) are routine, but applying the majorants inside the piecewise
+argument produces deterministic elaboration timeouts (\Ln{isDefEq}/\Ln{whnf} at $8\cdot10^5$
+heartbeats): a performance failure in checking large rational certificate terms, not a
+mathematical gap.
+
+\emph{Author-computed, not machine-checked:} with the four majorants and $\pi\le22/7$,
+$\sqrt3\le1.732051$ the four piece integrals sum to at most $0.6764$, giving
+$J_{1/2}\le16\cdot0.880112\cdot0.6764=9.5249$; an independent computation from the chord values
+at four decimal node bounds gives $9.5174$. Target $9.55$, true value $9.4917$. So the plan
+closes with roughly $0.3$--$0.6$\% margin, but it has not been carried out.
+
+\section{Deviations from the report's own argument}
+\label{sec:deviations}
+
+\begin{description}\itemsep3pt
+\item[D1 (scope).] In Lean the moments are \emph{defined} by the reduced one-dimensional
+formula: $J_{1/2},J_{5/2},J_{-3/2}$ are $24\int_0^{\pi/3}$ of, respectively,
+$\tfrac23\sqrt c\,(1-(x/(2+x))^{3/4})$,
+$(c^{5/2}/\tfrac72)(1-(x/(2+x))^{7/4})$,
+$2c^{-3/2}\bigl(((2+x)/x)^{1/4}-1\bigr)$, with $x=\cos^2 v$. These are the report's (3.2)
+integrands after $z=\cos v/\sqrt{2+\cos^2 v}$, i.e.\ $z^{p+1}=(x/(2+x))^{(p+1)/2}$. That
+substitution is \emph{not} formalized (a one-line calculation on paper). Hence \Ln{J52\_\allowbreak{}gt} and
+\Ln{Jm32\_\allowbreak{}gt} are statements about these definitions, not about
+$\int_{S^2}f(u)^p\,d\mathcal{H}^2(u)$.
+\item[D2 (method).] $J_{5/2}>33/10$ is proved without Jensen's inequality and without
+$J_2>87/20$: the integrand is bounded below on four subintervals by monotonicity of
+$v\mapsto1-(\cos^2v/(2+\cos^2v))^{7/4}$, with the rational bounds
+$1463/10000,\ 137/1000,\ 103/1000,\ 60/1000$ at the left endpoints (sum $35537/10000$) and
+$c^{5/2}>528/1000$.
+\item[D3 (method).] $J_{-3/2}>31$ is proved by convexity of $\Psi$ in $x=\cos^2v$ and tangent
+lines at $97/100,\ 169/200,\ 5/8,\ 37/100$, not by convexity in $v$ and the midpoint rule. The
+report's midpoint numbers $0.938,1.033,1.260,1.731$ are not used (they were checked
+numerically and are correct), and the report's remark that the integral average of a convex
+function is at least its midpoint value is not formalized.
+\item[D4 (method).] For $J_{1/2}$ the plan uses rational chords in $x=\cos^2v$
+(\Ln{ChordData.lean}) rather than the report's trapezoid rule in $v$; the report's table
+$0.330,0.339,0.366,0.412,0.474$ is not used (also checked numerically, also correct).
+\item[D5 (scope).] Proposition~5.1 is formalized only as the final algebraic identity.
+\item[D6 (no imports).] No classification or regularity theorem about minimal sets is imported
+anywhere, in agreement with the report's claim about its own proof.
+\end{description}
+
+\section{Numerical corrections of the formalization plan, not of the report}
+\label{sec:corrections}
+
+Constants that appeared in the task specification issued for this formalization effort and that
+are \emph{false}; the tree contains the corrected values and, for one of them, a machine-checked
+refutation (\Ln{D6.c\_\allowbreak{}pow52\_\allowbreak{}lo\_\allowbreak{}false}):
+\[
+(3/5)^{5/4}=0.5280670421,\quad (5/3)^{3/4}=1.4668528947,\quad (1/9)^{7/4}=0.0213833,
+\]
+\[
+\Lambda(1)=0.5613086623,\qquad \Lambda(94/100)=0.5748076987 .
+\]
+A bound $\Lambda(94/100)<0.6222$ is true but far too loose: with it the chord bound gives
+$J_{1/2}\le9.586>9.55$. The \emph{report's} own table entries
+$.330,.339,.366,.412,.474$ and $.938,1.033,1.260,1.731$ were checked numerically and are
+correct as bounds. The density $4\tau-5=2.2980813756$ ($\tau=1.8245203439$) was checked
+numerically.
+
+\section{Provenance and depth of review}
+
+Modules \Ln{Convex}, \Ln{NodeBounds}, \Ln{Constants}, \Ln{PsiConvex}, \Ln{ChordData} are the
+verbatim bodies of five submissions by members of an internal agent swarm (model:
+\Ln{deepseek-v4.1-flash}); only their preamble was replaced by an import of this project's
+definitions. They were refereed by (i) recompiling independently, (ii) grepping for forbidden
+tokens, (iii) \Ln{\#print axioms} on their main theorems. They have \emph{not} been reviewed by
+a human, and the model family that produced them is not independent of the model that wrote the
+rest of the tree. Modules \Ln{Basic}, \Ln{Moments}, \Ln{Jm32}, \Ln{Density}, \Ln{Main} were
+written by the author of this report. No declaration in the tree was produced by any prover
+other than Lean itself checking the supplied proof terms.
+
+\section{What may and may not be claimed}
+\label{sec:claims}
+
+\paragraph{May be claimed.} The following parts of the report are machine-checked in Lean~4 with
+Mathlib: the tetrahedral Gram data; the moment bounds $J_{5/2}>33/10$ and $J_{-3/2}>31$ for the
+reduced integrands of Lemma~3.2; the arithmetic step $B<-3/100$ and
+$2(B+4\pi/1000)<-1/40$, $<-7/250$ given the three moment bounds; the density identity
+link area$/4\pi=4\tau-5$; and all rational one-variable certificates (node values, chords,
+tangent data, constants) used by the numerical scheme. Every module compiles with no
+\Ln{sorry}, \Ln{admit}, \Ln{axiom} or \Ln{native\_\allowbreak{}decide} and uses only the standard axioms
+\Ln{propext}, \Ln{Classical.choice}, \Ln{Quot.sound}.
+
+\paragraph{May not be claimed.} That Theorem~1.2 is Lean-verified, or that the cone is proved in
+Lean not to be area-minimizing; that the moment bounds are verified for the \emph{sphere}
+integrals (they are not: only the reduced integrals are); that Lemma~3.3 as a whole is verified
+($J_{1/2}<191/20$ is missing); that the area identity, the cut-off cost, the Lipschitz estimates
+or the image identity of the deformation are verified; that the numerical value of the density
+is verified.
+
+\appendix
+
+\section{Declaration by declaration: what is relied on, and the difference from the paper}
+\label{app:decls}
+
+Names are given without the leading prefix \Ln{MathathonT5}. A declaration on which no delivered
+theorem depends is marked \Us{} in the last column or listed in Appendix~\ref{app:unused}.
+Difference codes are those of Section~\ref{sec:verdict}: \No, \Sc, \Me, \Wk, \As, \Us.
+
+{\footnotesize
+\begin{longtable}{L{3.7cm}L{4.2cm}L{3.4cm}L{4.7cm}}
+\toprule
+Lean declaration & What it asserts & Report claim supported & Difference from the paper\\
+\midrule\endhead
+\Ln{dot3\_\allowbreak{}p\_\allowbreak{}self} & $|p_i|^2=3/5$, $p_i=\epsilon_i/\sqrt5$ & Lemma~2.1, tetrahedral data;
+circumradius $c=\sqrt{3/5}$ & \Sc{} stated for $p_i=q_i/b$; the rescaling $q_i=b\,p_i$ is not
+formalized, and the report states $q_i\cdot q_i=3/8$.\\
+\Ln{dot3\_\allowbreak{}p\_\allowbreak{}off} & $p_i\cdot p_j=-1/5$ for $i\neq j$ & Lemma~2.1 & \Sc{} as above ($-1/8$ for
+the $q_i$).\\
+\Ln{sum\_\allowbreak{}pvec}, \Ln{sum\_\allowbreak{}dot3\_\allowbreak{}pvec} & $\sum_i p_i=0$ & implicit (centre at the origin) & \Sc{}
+stated only in words in the report.\\
+\Ln{fsup\_\allowbreak{}nonneg} & $f(u)\ge0$ & Lemma~2.1, $m|u|\le f(u)$ & \Wk{} only $\ge0$; the bounds
+$m|u|\le f(u)$, $f(u)\le c|u|$ and $\mathrm{Lip}\,f\le c$ are not formalized.\\
+\Ln{clip\_\allowbreak{}mem}, \Ln{abs\_\allowbreak{}clip\_\allowbreak{}le} & $|\mathrm{clip}\,z|\le1$ & (4.4) & \No\\
+\Ln{gR\_\allowbreak{}nonneg} & $g_R\ge0$ on $[0,\infty)$ for $R>0$ & (4.1) & \As{} $0<R$; otherwise \No\\
+\Ln{deltaR\_\allowbreak{}nonneg} & $\delta\ge0$ & (4.3) $0\le\delta\le1$, $\mathrm{Lip}\,\delta\le1$ &
+\Wk{} only $\delta\ge0$; $\delta\le1$ and $\mathrm{Lip}\,\delta\le1$ are not formalized.\\
+\Ln{FR\_\allowbreak{}nonneg}, \Ln{FR\_\allowbreak{}le\_\allowbreak{}fsup} & $0\le F_R\le f$ & (4.1) & \No{} (modulo $R>0$)\\
+\Ln{integral\_\allowbreak{}affine\_\allowbreak{}cos\_\allowbreak{}sq} & $\int_a^b(\alpha+\beta\cos^2)=\alpha(b-a)+\beta\bigl(\frac{b-a}2+
+\frac{\sin2b-\sin2a}4\bigr)$ & quadrature step implicit in the report & \No{}; used by
+\Ln{Jm32\_\allowbreak{}gt}\\
+\Ln{integral\_\allowbreak{}cos\_\allowbreak{}sq}, \Ln{integral\_\allowbreak{}cos\_\allowbreak{}sq\_\allowbreak{}zero\_\allowbreak{}pi\_\allowbreak{}div\_\allowbreak{}twelve}, \Ln{convex\_\allowbreak{}chord},
+\Ln{convex\_\allowbreak{}tangent}, \Ln{convex\_\allowbreak{}tangent\_\allowbreak{}deriv} & $\int\cos^2$; convex $\Rightarrow$ below chord;
+convex $\Rightarrow$ above tangent & the report's trapezoid and midpoint steps & \No{} but \Us{}
+no delivered theorem uses them\\
+\Ln{cos\_\allowbreak{}sq\_\allowbreak{}le\_\allowbreak{}cos\_\allowbreak{}sq}, \Ln{cos\_\allowbreak{}sq\_\allowbreak{}ge\_\allowbreak{}quarter}, \Ln{cos\_\allowbreak{}sq\_\allowbreak{}mem} & $\cos^2$ decreasing on
+$[0,\pi/2]$; $\cos^2\in[1/4,1]$ on $[0,\pi/3]$ & used throughout & \No\\
+\Ln{cos\_\allowbreak{}sq\_\allowbreak{}pi\_\allowbreak{}div\_\allowbreak{}twelve} & $\cos^2(\pi/12)=(2+\sqrt3)/4$ & the report's half-angle identities
+& \No\\
+\Ln{cos\_\allowbreak{}sq\_\allowbreak{}pi\_\allowbreak{}div\_\allowbreak{}twelve\_\allowbreak{}le} & $\cos^2(\pi/12)\le0.94$ & rational bracketing of the report &
+\Me{} a rational bound replaces the exact radical\\
+\Ln{g52\_\allowbreak{}mono}, \Ln{g52\_\allowbreak{}antitone}, \Ln{frac\_\allowbreak{}mono}, \Ln{g52\_\allowbreak{}ge\_\allowbreak{}of}, \Ln{g52\_\allowbreak{}p1..p4},
+\Ln{pow75\_\allowbreak{}le\_\allowbreak{}of\_\allowbreak{}pow7\_\allowbreak{}le}, \Ln{continuous\_\allowbreak{}g52}, \Ln{g52\_\allowbreak{}integral\_\allowbreak{}lower} & monotonicity of
+$1-(x/(2+x))^{7/4}$; four piecewise lower bounds with rational values & Lemma~3.3, second
+estimate & \Me{} the report uses Jensen on $S^2$ plus $J_2>87/20$; neither occurs here\\
+\Ln{c52\_\allowbreak{}lower}, \Ln{c52\_\allowbreak{}nonneg} & $528/1000\le c^{5/2}$ & implicit in the $J_{5/2}$ bound &
+\No\\
+\Ln{J52\_\allowbreak{}gt} & $33/10<J_{5/2}$; the chain gives $J_{5/2}\ge3.3667145$ & Lemma~3.3, second
+estimate & \Sc{} reduced integrand; \Me{} monotonicity, not Jensen; conclusion identical\\
+\Ln{convexOn\_\allowbreak{}Psi} & $\Psi$ convex on $[1/4,1]$ & the report's statement that $G_{-3/2}$ is
+convex \emph{in $v$}, via its $G''$ formula & \Sc{} convexity in $x=\cos^2v$, not in $v$; the
+report's formula for $G''_{-3/2}$ is not formalized\\
+\Ln{deriv\_\allowbreak{}Psi}, \Ln{deriv2\_\allowbreak{}Psi}, \Ln{strictConvexOn\_\allowbreak{}Psi}, \Ln{antitoneOn\_\allowbreak{}Psi},
+\Ln{deriv\_\allowbreak{}Psi\_\allowbreak{}neg} & derivative formulas and monotonicity of $\Psi$ & no counterpart & \No{}
+(internal; \Ln{deriv\_\allowbreak{}Psi} is used by \Ln{TangentData})\\
+\Ln{tangent\_\allowbreak{}le\_\allowbreak{}Psi} & $\Psi(c)+\Psi'(c)(x-c)\le\Psi(x)$ on $[1/4,1]$ & replaces the report's
+midpoint rule & \Me\\
+\Ln{Psi\_\allowbreak{}97\_\allowbreak{}100\_\allowbreak{}lo}, \Ln{Psi\_\allowbreak{}169\_\allowbreak{}200\_\allowbreak{}lo}, \Ln{Psi\_\allowbreak{}5\_\allowbreak{}8\_\allowbreak{}lo}, \Ln{Psi\_\allowbreak{}37\_\allowbreak{}100\_\allowbreak{}lo},
+\Ln{derivPsi\_\allowbreak{}97\_\allowbreak{}100\_\allowbreak{}lo}, \Ln{derivPsi\_\allowbreak{}169\_\allowbreak{}200\_\allowbreak{}lo}, \Ln{derivPsi\_\allowbreak{}5\_\allowbreak{}8\_\allowbreak{}lo},
+\Ln{derivPsi\_\allowbreak{}37\_\allowbreak{}100\_\allowbreak{}lo} & rational bounds $\Psi(q)\ge p$, $\Psi'(q)\ge-M$ at
+$q=0.97,0.845,0.625,0.37$ with $p=3228,3545,4315,5908/10^4$ and $M=2296,2818,4363,9072/10^4$ &
+the report's table at $v$-midpoints & \Me{} different points and different variable\\
+\Ln{piece\_\allowbreak{}lower\_\allowbreak{}Psi}, \Ln{intervalIntegrable\_\allowbreak{}psi\_\allowbreak{}cos\_\allowbreak{}sq},
+\Ln{continuousOn\_\allowbreak{}psi\_\allowbreak{}cos\_\allowbreak{}sq}, \Ln{sin\_\allowbreak{}pi\_\allowbreak{}div\_\allowbreak{}six'}, \Ln{sin\_\allowbreak{}pi\_\allowbreak{}div\_\allowbreak{}three'},
+\Ln{sin\_\allowbreak{}pi\_\allowbreak{}div\_\allowbreak{}two'}, \Ln{sin\_\allowbreak{}two\_\allowbreak{}pi\_\allowbreak{}div\_\allowbreak{}three'}, \Ln{psi\_\allowbreak{}pieces} & assembly of one
+piece; exact sine values; the four-piece sum & the report's midpoint computation & \Me\\
+\Ln{Jm32\_\allowbreak{}gt} & $31<J_{-3/2}$; the chain gives $J_{-3/2}\ge31.1900352$ & Lemma~3.3, third
+estimate & \Sc{} and \Me{} as above; conclusion identical\\
+\Ln{b\_\allowbreak{}bounds}, \Ln{bb\_\allowbreak{}sq}, \Ln{bb\_\allowbreak{}pos} & $0.79<b<0.791$, $b^2=5/8$ & $b=\sqrt{5/8}=0.7905694$
+& \No\\
+\Ln{c\_\allowbreak{}pow52\_\allowbreak{}lo} & $0.528<c^{5/2}=0.5280670$ & implicit & \No; a stronger $5282/10^4$ is false,
+refuted by \Ln{c\_\allowbreak{}pow52\_\allowbreak{}lo\_\allowbreak{}false}\\
+\Ln{c\_\allowbreak{}pow\_\allowbreak{}m32\_\allowbreak{}lo} & $1.4668<c^{-3/2}=1.4668529$ & the report's constant $D=1.46685$ & \No\\
+\Ln{nine\_\allowbreak{}pow\_\allowbreak{}lo} & $(1/9)^{7/4}<0.0214$ & no counterpart & \No{} (used only by deviation D2)\\
+\Ln{B\_\allowbreak{}lt}, \Ln{B\_\allowbreak{}neg}, \Ln{B\_\allowbreak{}neg\_\allowbreak{}exact} & $B<-39/1000$, $B<-3/100$,
+$B<-1989361/60000000$, \emph{given} the three moment bounds & Lemma~3.3 arithmetic step & \As{}
+the three moment bounds are hypotheses; $J_{1/2}<191/20$ is unproved in Lean\\
+\Ln{saving}, \Ln{saving\_\allowbreak{}sharp} & $2(B+4\pi/1000)<-1/40$, $<-7/250$, given the moment bounds &
+the report's final chain & \As{} as above\\
+\Ln{Bval}, \Ln{Bval\_\allowbreak{}eq} & definition of $B$ & Lemma~3.1 right-hand side & \No{} (definition)\\
+\Ln{saving\_\allowbreak{}of\_\allowbreak{}moments}, \Ln{saving\_\allowbreak{}of\_\allowbreak{}moments\_\allowbreak{}sharp} & as \Ln{saving}, with
+$\mathbb{R}$-valued moment variables & idem & \As{} \Ln{hJ1}\\
+\Ln{area\_\allowbreak{}decreases} & if $\mathrm{area}(X_{1000})\le\mathrm{area}(C)+2(B+4\pi/1000)$ then
+$1/40<\mathrm{area}(C)-\mathrm{area}(X_{1000})$ & Lemmas~2.2+3.1+4.1 composed & \As{} the whole
+area identity is a hypothesis, and \Ln{area} is an arbitrary function\\
+\Ln{not\_\allowbreak{}minimizing} & under the same hypothesis and $\varphi_{1000}(C)=X_{1000}$,
+$\mathrm{area}(\varphi_{1000}(C))<\mathrm{area}(C)-1/40$ & Theorem~1.2 & \As{} three hypotheses;
+not a proof of minimality failure\\
+\Ln{density\_\allowbreak{}eq}, \Ln{density\_\allowbreak{}eq'} & link area$/(4\pi)=4\tau-5$, with
+$\alpha=\arccos(-1/3)$, $\tau=3\alpha/\pi$ & Prop.~5.1, final identity & \Sc{} identity only; the
+spherical-excess computation and $4\tau-5=2.2980814$ are not formalized\\
+\bottomrule
+\end{longtable}
+}
+
+\section{Proved but not used by any delivered theorem}
+\label{app:unused}
+
+{\footnotesize
+\begin{longtable}{L{4.2cm}L{6.0cm}L{5.6cm}}
+\toprule
+Declarations & What they assert & What they would support\\
+\midrule\endhead
+\Ln{D4.Lam\_\allowbreak{}one\_\allowbreak{}lt'}, \Ln{Lam\_\allowbreak{}94\_\allowbreak{}lt'}, \Ln{Lam\_\allowbreak{}34\_\allowbreak{}lt}, \Ln{Lam\_\allowbreak{}12\_\allowbreak{}lt},
+\Ln{Lam\_\allowbreak{}14\_\allowbreak{}lt}, \Ln{Lam\_\allowbreak{}antitone}, \Ln{Lam\_\allowbreak{}lt\_\allowbreak{}of} & $\Lambda(1)<0.5614$,
+$\Lambda(0.94)<0.5749$, $\Lambda(3/4)<0.6227$, $\Lambda(1/2)<0.7010$, $\Lambda(1/4)<0.8076$;
+$\Lambda$ antitone; a generic fourth-power criterion & a chord/trapezoid route to
+$J_{1/2}<191/20$ through node values\\
+\Ln{D4.sqrtc\_\allowbreak{}lt} & $\sqrt c<0.880112$ & the final factor $16\sqrt c$ in the $J_{1/2}$ bound\\
+\Ln{D5.Lam\_\allowbreak{}piece\_\allowbreak{}one..four} & four rational affine majorants of $\Lambda$ on $[1/4,1/2]$,
+$[1/2,3/4]$, $[3/4,47/50]$, $[93/100,1]$ & the missing $J_{1/2}<191/20$ (Section~\ref{sec:missing})\\
+\Ln{D5.rpow\_\allowbreak{}chord\_\allowbreak{}le}, \Ln{rpow\_\allowbreak{}chord\_\allowbreak{}ge}, \Ln{Lam\_\allowbreak{}le\_\allowbreak{}affine}, \Ln{h7\_\allowbreak{}le\_\allowbreak{}affine},
+\Ln{Psi\_\allowbreak{}ge\_\allowbreak{}affine}, \Ln{inv\_\allowbreak{}ge\_\allowbreak{}tangent}, \Ln{rpow\_\allowbreak{}quarter\_\allowbreak{}le\_\allowbreak{}of\_\allowbreak{}le\_\allowbreak{}fourth} &
+general chord/tangent machinery for power maps and the M\"obius map & the four families of
+piecewise rational certificates\\
+\Ln{D5.h7\_\allowbreak{}piece\_\allowbreak{}one..four} & rational affine majorants of $(x/(2+x))^{7/4}$ & an alternative
+route to $J_{5/2}>33/10$\\
+\Ln{D5.Psi\_\allowbreak{}piece\_\allowbreak{}one..four} & rational affine minorants of $\Psi$ on the four $x$-intervals &
+an alternative route to $J_{-3/2}>31$\\
+\bottomrule
+\end{longtable}
+}
+
+\section{Internal machinery (no paper counterpart)}
+
+\Ln{dot3\_\allowbreak{}smul\_\allowbreak{}smul}, \Ln{inv\_\allowbreak{}sqrt5\_\allowbreak{}sq}, \Ln{dot3\_\allowbreak{}eps\_\allowbreak{}self}, \Ln{dot3\_\allowbreak{}eps\_\allowbreak{}off},
+\Ln{nrm3\_\allowbreak{}nonneg} (linear algebra of the sign vectors); \Ln{rpow\_\allowbreak{}mono}, \Ln{rpow\_\allowbreak{}two},
+\Ln{Real.rpow\_\allowbreak{}mul} wrappers; \Ln{rpow\_\allowbreak{}quarter\_\allowbreak{}pow\_\allowbreak{}four}, \Ln{rpow\_\allowbreak{}nat\_\allowbreak{}div\_\allowbreak{}four},
+\Ln{rpow\_\allowbreak{}neg\_\allowbreak{}nat\_\allowbreak{}div\_\allowbreak{}four}, \Ln{rpow\_\allowbreak{}quarter\_\allowbreak{}lt\_\allowbreak{}iff}, \Ln{rpow\_\allowbreak{}three\_\allowbreak{}quarters},
+\Ln{rpow\_\allowbreak{}three\_\allowbreak{}quarters\_\allowbreak{}rpow\_\allowbreak{}four}, \Ln{rpow\_\allowbreak{}four\_\allowbreak{}eq},
+\Ln{lt\_\allowbreak{}rpow\_\allowbreak{}three\_\allowbreak{}quarters\_\allowbreak{}iff}, \Ln{rpow\_\allowbreak{}three\_\allowbreak{}quarters\_\allowbreak{}lt\_\allowbreak{}iff},
+\Ln{rpow\_\allowbreak{}fourth\_\allowbreak{}three\_\allowbreak{}quarters}, \Ln{rpow\_\allowbreak{}fourth\_\allowbreak{}one\_\allowbreak{}quarter},
+\Ln{rpow\_\allowbreak{}fourth\_\allowbreak{}seven\_\allowbreak{}quarters}, \Ln{le\_\allowbreak{}rpow\_\allowbreak{}quarter},
+\Ln{le\_\allowbreak{}rpow\_\allowbreak{}three\_\allowbreak{}quarters'} (rational exponent bookkeeping);
+\Ln{bb\_\allowbreak{}nonneg}, \Ln{bb\_\allowbreak{}rpow\_\allowbreak{}three}, \Ln{cc\_\allowbreak{}nonneg}, \Ln{cc\_\allowbreak{}pos}, \Ln{cc\_\allowbreak{}sq},
+\Ln{cc\_\allowbreak{}rpow\_\allowbreak{}three}, \Ln{c\_\allowbreak{}bounds}, \Ln{bb\_\allowbreak{}cube}, \Ln{cc\_\allowbreak{}pow52\_\allowbreak{}eq},
+\Ln{cc\_\allowbreak{}pow52\_\allowbreak{}upper}, \Ln{bb\_\allowbreak{}pow52\_\allowbreak{}eq}, \Ln{bb\_\allowbreak{}pow52\_\allowbreak{}bounds},
+\Ln{bb\_\allowbreak{}rpow\_\allowbreak{}three\_\allowbreak{}bounds} (constants); \Ln{hasDerivAt\_\allowbreak{}quo}, \Ln{hasDerivAt\_\allowbreak{}Psi},
+\Ln{deriv\_\allowbreak{}alt}, \Ln{hasDerivAt\_\allowbreak{}derivPsi}, \Ln{hasDerivAt\_\allowbreak{}derivPsi\_\allowbreak{}mono},
+\Ln{hasDerivAt\_\allowbreak{}Psi\_\allowbreak{}97/\_\allowbreak{}169/\_\allowbreak{}58/\_\allowbreak{}37} (derivative chain rules).
+
+\section{Reproduction}
+
+\begin{verbatim}
+  results/t5-formalization/build.sh                  build driver
+  results/t5-formalization/README.md                 module inventory
+  results/t5-formalization/VERIFICATION-REPORT.tex    this document
+  MathathonT5/Basic.lean         185 lines   MathathonT5/PsiConvex.lean    283
+  MathathonT5/Moments.lean       294          MathathonT5/TangentData.lean  145
+  MathathonT5/Convex.lean         91          MathathonT5/Jm32.lean         217
+  MathathonT5/NodeBounds.lean    131          MathathonT5/ChordData.lean    700
+  MathathonT5/Constants.lean     211          MathathonT5/Density.lean       37
+  MathathonT5/Main.lean           64                        total 2358
+
+  cd results/t5-formalization && ./build.sh        # exit 0, "all modules checked"
+\end{verbatim}
+
+\noindent Requirements: \Ln{lean} 4.33.1 on the path and \Ln{LEAN\_\allowbreak{}PATH} containing a built
+Mathlib (\Ln{build.sh} prepends its own directory). No Lake project is used; each module is
+checked by \Ln{lean -o MathathonT5/<m>.olean MathathonT5/<m>.lean} in the order
+Basic, Moments, Convex, NodeBounds, Constants, PsiConvex, TangentData, Jm32, ChordData,
+Density, Main.
+
+\end{document}
